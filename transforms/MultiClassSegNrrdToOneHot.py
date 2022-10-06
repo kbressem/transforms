@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Dict, Hashable, List, Optional, Tuple
 
@@ -6,8 +7,6 @@ from monai.config.type_definitions import KeysCollection, NdarrayOrTensor
 from monai.transforms import MapTransform, Transform
 from monai.transforms.utils import TransformBackends, ensure_tuple_rep
 from monai.utils import convert_data_type
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -40,23 +39,12 @@ class MulticlassSegNrrdToOneHot(Transform):
         n_seg = len(segment_names)
         one_hot = np.zeros((n_seg, *image.shape[1:]))
         for i, name in enumerate(segment_names):
-            (
-                new_layer_id,
-                layer,
-                label_value,
-                extent,
-                offset,
-            ) = self._extract_info_by_name(label_meta_dict, name)
+            (new_layer_id, layer, label_value, extent, offset,) = self._extract_info_by_name(label_meta_dict, name)
             if -1 in extent:
                 continue  # skip empty segments
             segment = label[layer] == label_value
-            segment_indices = [
-                slice(e1, e2 + 1) for e1, e2 in zip(extent[0::2], extent[1::2])
-            ]
-            onehot_indices = [i] + [
-                slice(o + e1, o + e2 + 1)
-                for o, e1, e2 in zip(offset, extent[0::2], extent[1::2])
-            ]
+            segment_indices = [slice(e1, e2 + 1) for e1, e2 in zip(extent[0::2], extent[1::2])]
+            onehot_indices = [i] + [slice(o + e1, o + e2 + 1) for o, e1, e2 in zip(offset, extent[0::2], extent[1::2])]
             one_hot[tuple(onehot_indices)] = segment[tuple(segment_indices)]
             label_meta_dict = self._update_meta_dict(label_meta_dict, i)
 
@@ -70,7 +58,7 @@ class MulticlassSegNrrdToOneHot(Transform):
 
         """
         # TODO: Update affine
-        label_meta_dict = (label_meta_dict.copy())  # avoid weird bug where dict is changed inplace
+        label_meta_dict = label_meta_dict.copy()  # avoid weird bug where dict is changed inplace
         label_meta_dict[f"Segment{seg_id}_LabelValue"] = "1"
         label_meta_dict[f"Segment{seg_id}_Layer"] = str(seg_id)
         return label_meta_dict
@@ -166,14 +154,8 @@ class MulticlassSegNrrdToOneHotd(MapTransform):
 
     def __call__(self, data) -> Dict[Hashable, NdarrayOrTensor]:
         d = dict(data)
-        for key, meta_key, meta_key_postfix in zip(
-            self.keys, self.meta_keys, self.meta_key_postfix
-        ):
-            values, meta = self.adjuster(
-                d[self.ref_image_key],
-                d[key],
-                d[meta_key or f"{key}_{meta_key_postfix}"],
-            )
+        for key, meta_key, meta_key_postfix in zip(self.keys, self.meta_keys, self.meta_key_postfix):
+            values, meta = self.adjuster(d[self.ref_image_key], d[key], d[meta_key or f"{key}_{meta_key_postfix}"],)
             d[key] = values
             d[meta_key or f"{key}_{meta_key_postfix}"] = meta
         return d

@@ -1,13 +1,12 @@
+import logging
 from typing import Dict, Tuple
 
 import numpy as np
+import torch
 from monai.config.type_definitions import NdarrayOrTensor
 from monai.transforms import Transform
 from monai.utils import convert_data_type, convert_to_tensor
 from scipy import ndimage
-
-import logging
-import torch
 from torch.nn import functional as F  # noqa F401
 
 logger = logging.getLogger(__name__)
@@ -29,17 +28,13 @@ class PathologyLabelSoften(Transform):
     """
 
     def __init__(self, increments=10) -> None:
-        assert (
-            increments > 0 and increments < 20
-        ), "Increments should be between 1 and 19"
+        assert increments > 0 and increments < 20, "Increments should be between 1 and 19"
         self.increments = increments
         self.classes = ("effusion", "infiltration", "atelectasis")
         self.severity = ("_1/3", "_2/3", "_3/3")
         self.soft_classes = [f"{c}{s}" for c in self.classes for s in self.severity]
 
-    def __call__(
-        self, label: NdarrayOrTensor, meta_dict: Dict
-    ) -> Tuple[NdarrayOrTensor, Dict]:
+    def __call__(self, label: NdarrayOrTensor, meta_dict: Dict) -> Tuple[NdarrayOrTensor, Dict]:
         label, prev_type, device = convert_data_type(label, np.ndarray)
         # labels are pseudo-3d, means format is C [[H, W], 1]
         # squeezing makes working with labels easier
@@ -54,9 +49,7 @@ class PathologyLabelSoften(Transform):
         label, *_ = convert_data_type(label, prev_type, device)
         return label, meta_dict
 
-    def _sort_labels(
-        self, label: np.ndarray, meta_dict: Dict
-    ) -> Tuple[np.ndarray, Dict]:
+    def _sort_labels(self, label: np.ndarray, meta_dict: Dict) -> Tuple[np.ndarray, Dict]:
         """Create fixed order of labels for save indexing
         Args:
             label: an array coming from a seg.nrrd file
@@ -77,9 +70,7 @@ class PathologyLabelSoften(Transform):
                 new_label[i] = (label[label_layer] == label_value).astype(np.uint8)
             except ValueError:
                 new_label[i] = 0
-                logger.warning(
-                    f"{c} not found in meta_dict keys, was it removed?"
-                )
+                logger.warning(f"{c} not found in meta_dict keys, was it removed?")
         del label
         return new_label
 
@@ -104,7 +95,7 @@ class PathologyLabelSoften(Transform):
         label = convert_to_tensor(label)
         label = label.unsqueeze(0).unsqueeze(0).float()
         ks = 3
-        mean_kernel = torch.ones(1, 1, ks, ks) / ks**2
+        mean_kernel = torch.ones(1, 1, ks, ks) / ks ** 2
         label = F.conv2d(label, mean_kernel, padding=ks // 2)
         return label.squeeze().numpy()
 
@@ -115,19 +106,13 @@ class PathologyLabelSoften(Transform):
         for i in range(n):
             upper_left, bottom_right = self._extract_bbox(label == i + 1)
             x, y = np.ogrid[
-                upper_left[0] : bottom_right[0],  # noqa E203
-                upper_left[1] : bottom_right[1],  # noqa E203
+                upper_left[0] : bottom_right[0], upper_left[1] : bottom_right[1],  # noqa E203  # noqa E203
             ]
-            partial_label = [
-                self._interpolate_and_pad(label[x, y], i / 20)
-                for i in range(20 - self.increments, 20)
-            ]
+            partial_label = [self._interpolate_and_pad(label[x, y], i / 20) for i in range(20 - self.increments, 20)]
             soft_label[x, y] = np.mean(np.stack(partial_label, 0), 0)
         return soft_label
 
-    def _interpolate_and_pad(
-        self, label: np.ndarray, relative_size_reduction: float
-    ) -> np.ndarray:
+    def _interpolate_and_pad(self, label: np.ndarray, relative_size_reduction: float) -> np.ndarray:
         "Shrink a binary area but keep the center of mass at the same position in the array"
         com = ndimage.center_of_mass(label)
         com = [int(i) for i in com]
@@ -169,10 +154,7 @@ class PathologyLabelSoften(Transform):
         bottom_right = np.max(indices, 0)
         return upper_left, bottom_right
 
-    def _split_by_label(
-        self,
-        label: np.ndarray,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def _split_by_label(self, label: np.ndarray,) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         "Separate pathology instances from label"
         effusion = label[0:3]
         infiltration = label[3:6]
