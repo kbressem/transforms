@@ -32,7 +32,7 @@ class TestFilterKernelTransform(unittest.TestCase):
             _ = FilterKernelTransform(torch.ones(3, 3, 3, 3))
 
     @parameterized.expand(EXPECTED_KERNELS.keys())
-    def test_2d_kernels(self, kernel_name):
+    def test_2d_kernel_correctness(self, kernel_name):
         tfm = FilterKernelTransform(kernel_name, kernel_size=3)
         kernel = tfm._create_kernel_from_string(kernel_name, size=3, ndim=2).squeeze()
         torch.testing.assert_allclose(kernel, EXPECTED_KERNELS[kernel_name])

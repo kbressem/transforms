@@ -1,10 +1,10 @@
-from typing import Mapping, Optional, Union
+from typing import Mapping, Optional, Union, Hashable, Dict
 
 import torch
-from monai.config.type_definitions import NdarrayOrTensor
+from monai.config.type_definitions import NdarrayOrTensor, KeysCollection
 from monai.data.meta_tensor import MetaTensor
 from monai.networks.layers import apply_filter
-from monai.transforms import Transform
+from monai.transforms import Transform, MapTransform, RandomizableTransform
 from monai.utils import convert_to_tensor
 from monai.utils.enums import TransformBackends
 
@@ -132,16 +132,16 @@ class FilterKernelTransform(Transform):
         for value in x:
             assert value % 2 == 1, f"Only uneven kernels are supported, but kernel size is {x}"
 
-    def _create_kernel_from_string(self, name, size, ndim):
+    def _create_kernel_from_string(self, name, size, ndim) -> torch.Tensor:
         "Create an `ndim` kernel of size `(size, ) * ndim`."
         func = getattr(self, f"_create_{name}_kernel")
         kernel = func(size, ndim)
         return kernel.to(torch.float32)
 
-    def _create_mean_kernel(self, size, ndim):
+    def _create_mean_kernel(self, size, ndim) -> torch.Tensor:
         return torch.ones([1, 1] + [size] * ndim)
 
-    def _create_laplacian_kernel(self, size, ndim):
+    def _create_laplacian_kernel(self, size, ndim) -> torch.Tensor:
         kernel = torch.ones([1, 1] + [size] * ndim).float() - 2  # make all -1
         center_point = tuple([0, 0] + [size // 2] * ndim)
         kernel[center_point] = (size**ndim) - 1
@@ -154,7 +154,7 @@ class FilterKernelTransform(Transform):
         kernel = squared_distances <= radius**2
         return kernel
 
-    def _sobel_2d(self, size):
+    def _sobel_2d(self, size) -> torch.Tensor:
         """Create a generic 2d sobel kernel"""
         numerator = torch.arange(-size // 2 + 1, size // 2 + 1, dtype=torch.float32).unsqueeze(0)
         denominator = numerator * numerator
@@ -162,7 +162,7 @@ class FilterKernelTransform(Transform):
         denominator[:, size // 2] = 1.0  # to avoid division by zero
         return numerator / denominator
 
-    def _sobel_3d(self, size):
+    def _sobel_3d(self, size) -> torch.Tensor:
         """Create a generic 3d sobel kernel"""
         kernel_2d = self._sobel_2d(size)
         kernel_3d = torch.stack((kernel_2d,) * size, -1)
@@ -170,7 +170,7 @@ class FilterKernelTransform(Transform):
         adapter = adapter / adapter.max() + 1  # scale between 1 - 2
         return kernel_3d * adapter
 
-    def _create_sobel_w_kernel(self, size, ndim):
+    def _create_sobel_w_kernel(self, size, ndim) -> torch.Tensor:
         """Edge detection in x/w direction for Tensor in shape [WH[D]]"""
         if ndim == 2:
             kernel = self._sobel_2d(size)
@@ -180,12 +180,51 @@ class FilterKernelTransform(Transform):
             raise ValueError(f"Only 2 or 3 dimensional kernels are supported. Got {ndim}")
         return kernel
 
-    def _create_sobel_h_kernel(self, size, ndim):
+    def _create_sobel_h_kernel(self, size, ndim) -> torch.Tensor:
         """Edge detection in y/h direction for Tensor in shape [WH[D]]"""
         kernel = self._create_sobel_w_kernel(size, ndim).transpose(0, 1)
         return kernel
 
-    def _create_sobel_d_kernel(self, size, ndim):
+    def _create_sobel_d_kernel(self, size, ndim) -> torch.Tensor:
         """Edge detection in z/d direction for Tensor in shape [WHD]]"""
         assert ndim == 3, "Only 3 dimensional kernels are supported for `sobel_h`"
         return self.sobel_3d(size).transpose(1, 2)
+
+
+class FilterKernelTransformd(MapTransform):
+    """
+    Dictionary-based wrapper of :py:class:`monai.transforms.FilterKernelTransform`.
+
+    Args:
+        keys: keys of the corresponding items to be transformed.
+            See also: monai.transforms.MapTransform
+        kernel:
+            A string specifying the kernel or a custom kernel as `torch.Tenor` or `np.ndarray`.
+            Available options are: `mean`, `laplacian`, `elliptical`, `sobel_{w,h,d}``
+        kernel_size:
+            A single integer value specifying the size of the quadratic or cubic kernel.
+            Computational complexity increases exponentially with kernel_size, which
+            should be considered when choosing the kernel size.
+        allow_missing_keys: don't raise exception if key is missing.
+    """
+
+    backend = FilterKernelTransform.backend
+    def __init__(
+            self,
+            keys: KeysCollection,
+            kernel: Union[str, NdarrayOrTensor],
+            kernel_size: Optional[int] = None,
+            allow_missing_keys: bool = False,
+        ) -> None:
+        super().__init__(keys, allow_missing_keys)
+        self.filter = FilterKernelTransform(kernel, kernel_size)
+    
+    def __call__(self, data: Mapping[Hashable, NdarrayOrTensor]) -> Dict[Hashable, NdarrayOrTensor]:
+        d = dict(data)
+        for key in self.key_iterator(d):
+            d[key] = self.filter(d[key])
+        return d
+
+
+class RandomFilterKernel(RandomizableTransform):
+    backend = FilterKernelTransform.backend
