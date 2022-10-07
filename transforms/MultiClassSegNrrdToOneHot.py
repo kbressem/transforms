@@ -39,7 +39,13 @@ class MulticlassSegNrrdToOneHot(Transform):
         n_seg = len(segment_names)
         one_hot = np.zeros((n_seg, *image.shape[1:]))
         for i, name in enumerate(segment_names):
-            (new_layer_id, layer, label_value, extent, offset,) = self._extract_info_by_name(label_meta_dict, name)
+            (
+                new_layer_id,
+                layer,
+                label_value,
+                extent,
+                offset,
+            ) = self._extract_info_by_name(label_meta_dict, name)
             if -1 in extent:
                 continue  # skip empty segments
             segment = label[layer] == label_value
@@ -155,7 +161,11 @@ class MulticlassSegNrrdToOneHotd(MapTransform):
     def __call__(self, data) -> Dict[Hashable, NdarrayOrTensor]:
         d = dict(data)
         for key, meta_key, meta_key_postfix in zip(self.keys, self.meta_keys, self.meta_key_postfix):
-            values, meta = self.adjuster(d[self.ref_image_key], d[key], d[meta_key or f"{key}_{meta_key_postfix}"],)
+            values, meta = self.adjuster(
+                d[self.ref_image_key],
+                d[key],
+                d[meta_key or f"{key}_{meta_key_postfix}"],
+            )
             d[key] = values
             d[meta_key or f"{key}_{meta_key_postfix}"] = meta
         return d

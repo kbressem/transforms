@@ -70,13 +70,29 @@ class FilterKernelTransform(Transform):
             [1., 1., 1., 1., 1.]
             [1., 1., 1., 1., 1.]
             [0., 0., 1., 0., 0.]
+
+    ## Sobel kernel
+    > `kernel={'sobel_h', 'sobel_w', ''sobel_d}`
+
+    Edge detection with sobel kernel, along the h,w or d axis of tensor.
+    Example 2D kernel (5x5) for `sobel_w`:
+
+            [-0.25, -0.20,  0.00,  0.20,  0.25]
+            [-0.40, -0.50,  0.00,  0.50,  0.40]
+            [-0.50, -1.00,  0.00,  1.00,  0.50]
+            [-0.40, -0.50,  0.00,  0.50,  0.40]
+            [-0.25, -0.20,  0.00,  0.20,  0.25]
+
     """
 
     backend = [TransformBackends.TORCH, TransformBackends.NUMPY]
-    supported_kernels = sorted(["mean", "laplacian", "elliptical"])
+    supported_kernels = sorted(["mean", "laplacian", "elliptical", "sobel_w", "sobel_h", "sobel_d"])
 
     def __init__(
-        self, kernel: Union[str, NdarrayOrTensor], kernel_size: Optional[int] = None, convert_one_hot: bool = False,
+        self,
+        kernel: Union[str, NdarrayOrTensor],
+        kernel_size: Optional[int] = None,
+        convert_one_hot: bool = False,
     ) -> None:
 
         if isinstance(kernel, str):
@@ -86,8 +102,8 @@ class FilterKernelTransform(Transform):
                 raise NotImplementedError(f"{kernel}. Supported kernels are {self.supported_kernels}.")
         else:
             assert kernel.ndim in [1, 2, 3], "Only 1D, 2D, and 3D kernels are supported"
-            self._assert_all_values_even(kernel)
             kernel = convert_to_tensor(kernel, dtype=torch.float32)
+            self._assert_all_values_uneven(kernel.shape)
 
         self.kernel = kernel
         self.kernel_size = kernel_size
@@ -112,7 +128,7 @@ class FilterKernelTransform(Transform):
             img_ = MetaTensor(img_, meta_dict)
         return img_
 
-    def _assert_all_values_even(self, x: tuple) -> None:
+    def _assert_all_values_uneven(self, x: tuple) -> None:
         for value in x:
             assert value % 2 == 1, f"Only uneven kernels are supported, but kernel size is {x}"
 
@@ -128,22 +144,48 @@ class FilterKernelTransform(Transform):
     def _create_laplacian_kernel(self, size, ndim):
         kernel = torch.ones([1, 1] + [size] * ndim).float() - 2  # make all -1
         center_point = tuple([0, 0] + [size // 2] * ndim)
-        kernel[center_point] = (size ** ndim) - 1
+        kernel[center_point] = (size**ndim) - 1
         return kernel
 
-    def _create_elliptical_kernel(size: int, ndim: int) -> torch.Tensor:
+    def _create_elliptical_kernel(self, size: int, ndim: int) -> torch.Tensor:
         radius = size // 2
         grid = torch.meshgrid(*[torch.arange(0, size) for _ in range(ndim)])
         squared_distances = torch.stack([(axis - radius) ** 2 for axis in grid], 0).sum(0)
-        kernel = squared_distances <= radius ** 2
+        kernel = squared_distances <= radius**2
         return kernel
 
-    def _create_sobel_kernel(self, size, ndim) -> torch.Tensor:
-        # kernel function adapted from `monai.transforms.SobelGradients` by @drbeh
-
-        numerator = torch.arange(-size // 2 + 1, size // 2 + 1, dtype=torch.float32)
+    def _sobel_2d(self, size):
+        """Create a generic 2d sobel kernel"""
+        numerator = torch.arange(-size // 2 + 1, size // 2 + 1, dtype=torch.float32).unsqueeze(0)
         denominator = numerator * numerator
         denominator = denominator + denominator.T
         denominator[:, size // 2] = 1.0  # to avoid division by zero
-        kernel = numerator / denominator
+        return numerator / denominator
+
+    def _sobel_3d(self, size):
+        """Create a generic 3d sobel kernel"""
+        kernel_2d = self._sobel_2d(size)
+        kernel_3d = torch.stack((kernel_2d,) * size, -1)
+        adapter = (size // 2) - torch.arange(-size // 2 + 1, size // 2 + 1, dtype=torch.float32).abs()
+        adapter = adapter / adapter.max() + 1  # scale between 1 - 2
+        return kernel_3d * adapter
+
+    def _create_sobel_w_kernel(self, size, ndim):
+        """Edge detection in x/w direction for Tensor in shape [WH[D]]"""
+        if ndim == 2:
+            kernel = self._sobel_2d(size)
+        elif ndim == 3:
+            kernel = self._sobel_3d(size)
+        else:
+            raise ValueError(f"Only 2 or 3 dimensional kernels are supported. Got {ndim}")
         return kernel
+
+    def _create_sobel_h_kernel(self, size, ndim):
+        """Edge detection in y/h direction for Tensor in shape [WH[D]]"""
+        kernel = self._create_sobel_w_kernel(size, ndim).transpose(0, 1)
+        return kernel
+
+    def _create_sobel_d_kernel(self, size, ndim):
+        """Edge detection in z/d direction for Tensor in shape [WHD]]"""
+        assert ndim == 3, "Only 3 dimensional kernels are supported for `sobel_h`"
+        return self.sobel_3d(size).transpose(1, 2)
