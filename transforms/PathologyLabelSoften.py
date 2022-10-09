@@ -107,7 +107,7 @@ class PathologyLabelSoften(Transform):
             upper_left, bottom_right = self._extract_bbox(label == i + 1)
             x, y = np.ogrid[
                 upper_left[0] : bottom_right[0],  # noqa E203
-                upper_left[1] : bottom_right[1],  # noqa E203  
+                upper_left[1] : bottom_right[1],  # noqa E203
             ]
             partial_label = [self._interpolate_and_pad(label[x, y], i / 20) for i in range(20 - self.increments, 20)]
             soft_label[x, y] = np.mean(np.stack(partial_label, 0), 0)

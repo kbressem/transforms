@@ -1,10 +1,10 @@
-from typing import Mapping, Optional, Union, Hashable, Dict
+from typing import Dict, Hashable, Mapping, Optional, Union
 
 import torch
-from monai.config.type_definitions import NdarrayOrTensor, KeysCollection
+from monai.config.type_definitions import KeysCollection, NdarrayOrTensor
 from monai.data.meta_tensor import MetaTensor
 from monai.networks.layers import apply_filter
-from monai.transforms import Transform, MapTransform, RandomizableTransform
+from monai.transforms import MapTransform, RandomizableTransform, Transform
 from monai.utils import convert_to_tensor
 from monai.utils.enums import TransformBackends
 
@@ -209,16 +209,17 @@ class FilterKernelTransformd(MapTransform):
     """
 
     backend = FilterKernelTransform.backend
+
     def __init__(
-            self,
-            keys: KeysCollection,
-            kernel: Union[str, NdarrayOrTensor],
-            kernel_size: Optional[int] = None,
-            allow_missing_keys: bool = False,
-        ) -> None:
+        self,
+        keys: KeysCollection,
+        kernel: Union[str, NdarrayOrTensor],
+        kernel_size: Optional[int] = None,
+        allow_missing_keys: bool = False,
+    ) -> None:
         super().__init__(keys, allow_missing_keys)
         self.filter = FilterKernelTransform(kernel, kernel_size)
-    
+
     def __call__(self, data: Mapping[Hashable, NdarrayOrTensor]) -> Dict[Hashable, NdarrayOrTensor]:
         d = dict(data)
         for key in self.key_iterator(d):
