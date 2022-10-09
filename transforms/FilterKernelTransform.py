@@ -50,7 +50,7 @@ class FilterKernelTransform(Transform):
     ## Laplacian kernel
     > `kernel='laplacian'`
 
-    Laplacian filtering for edge detection in images. Can be used to transform labels to contours.
+    Laplacian filtering for outline detection in images. Can be used to transform labels to contours.
     Example 2D kernel (5x5):
 
             [-1., -1., -1., -1., -1.]
@@ -86,8 +86,8 @@ class FilterKernelTransform(Transform):
     ## Sharpen kernel
     > `kernel="sharpen"`
 
-    Sharpen an image with a 2D or 3D kernel. 
-    Example 2D kernel (5x5): 
+    Sharpen an image with a 2D or 3D kernel.
+    Example 2D kernel (5x5):
 
             [ 0.,  0., -1.,  0.,  0.]
             [-1., -1., -1., -1., -1.]
@@ -124,7 +124,7 @@ class FilterKernelTransform(Transform):
         """
         Args:
             img: torch tensor data to apply filter to with shape: [channels, height, width[, depth]]
-            meta_dict: An optional dictionary with metadata 
+            meta_dict: An optional dictionary with metadata
 
         Returns:
             A MetaTensor with the same shape as `img` and identical metadata
@@ -140,7 +140,7 @@ class FilterKernelTransform(Transform):
         img_ = img[0]
         if meta_dict:
             img_ = MetaTensor(img_, meta_dict)
-        else: 
+        else:
             img_, *_ = convert_data_type(img_, prev_type, device)
         return img_
 
@@ -159,7 +159,7 @@ class FilterKernelTransform(Transform):
         return torch.ones([size] * ndim)
 
     def _create_laplacian_kernel(self, size, ndim) -> torch.Tensor:
-        """Create a torch.Tensor with shape (size, ) * ndim. 
+        """Create a torch.Tensor with shape (size, ) * ndim.
         All values are `-1` except the center value which is size**ndim - 1
         """
         kernel = torch.zeros([size] * ndim).float() - 1  # make all -1
@@ -211,11 +211,11 @@ class FilterKernelTransform(Transform):
         assert ndim == 3, "Only 3 dimensional kernels are supported for `sobel_d`"
         return self._sobel_3d(size).transpose(1, 2)
 
-    def _create_sharpen_kernel(self, size, ndim) -> torch.Tensor: 
+    def _create_sharpen_kernel(self, size, ndim) -> torch.Tensor:
         """Create a torch.Tensor with shape (size, ) * ndim.
         The kernel contains a circle/sphere of `-1`, with the center value beeing
-        the absolut sum of all non-zero elements in the kernel        
-        """ 
+        the absolut sum of all non-zero elements in the kernel
+        """
         kernel = self._create_elliptical_kernel(size, ndim)
         center_point = tuple([size // 2] * ndim)
         center_value = kernel.sum()
