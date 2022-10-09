@@ -5,7 +5,7 @@ from monai.config.type_definitions import KeysCollection, NdarrayOrTensor
 from monai.data.meta_tensor import MetaTensor
 from monai.networks.layers import apply_filter
 from monai.transforms import MapTransform, RandomizableTransform, Transform
-from monai.utils import convert_to_tensor
+from monai.utils import convert_data_type, convert_to_tensor
 from monai.utils.enums import TransformBackends
 
 
@@ -83,10 +83,21 @@ class FilterKernelTransform(Transform):
             [-0.40, -0.50,  0.00,  0.50,  0.40]
             [-0.25, -0.20,  0.00,  0.20,  0.25]
 
+    ## Sharpen kernel
+    > `kernel="sharpen"`
+
+    Sharpen an image with a 2D or 3D kernel. 
+    Example 2D kernel (5x5): 
+
+            [ 0.,  0., -1.,  0.,  0.]
+            [-1., -1., -1., -1., -1.]
+            [-1., -1., 17., -1., -1.]
+            [-1., -1., -1., -1., -1.]
+            [ 0.,  0., -1.,  0.,  0.]
     """
 
     backend = [TransformBackends.TORCH, TransformBackends.NUMPY]
-    supported_kernels = sorted(["mean", "laplacian", "elliptical", "sobel_w", "sobel_h", "sobel_d"])
+    supported_kernels = sorted(["mean", "laplacian", "elliptical", "sobel_w", "sobel_h", "sobel_d", "sharpen"])
 
     def __init__(
         self,
@@ -113,19 +124,24 @@ class FilterKernelTransform(Transform):
         """
         Args:
             img: torch tensor data to apply filter to with shape: [channels, height, width[, depth]]
+            meta_dict: An optional dictionary with metadata 
 
         Returns:
             A MetaTensor with the same shape as `img` and identical metadata
         """
         if isinstance(img, MetaTensor):
             meta_dict = img.meta
-        img_ = convert_to_tensor(img, track_meta=False)
-        ndim = img_.shape - 1  # assumes channel first format
+        img_, prev_type, device = convert_data_type(img, torch.Tensor)
+        ndim = img_.ndim - 1  # assumes channel first format
         if isinstance(self.kernel, str):
             self.kernel = self._create_kernel_from_string(self.kernel, self.kernel_size, ndim)
-        img_ = apply_filter(img_, self.kernel)
+        img_ = img_.unsqueeze(0)
+        img_ = apply_filter(img_, self.kernel)  # batch, channels, H[, W, D] is required for img_
+        img_ = img[0]
         if meta_dict:
             img_ = MetaTensor(img_, meta_dict)
+        else: 
+            img_, *_ = convert_data_type(img_, prev_type, device)
         return img_
 
     def _assert_all_values_uneven(self, x: tuple) -> None:
@@ -133,21 +149,26 @@ class FilterKernelTransform(Transform):
             assert value % 2 == 1, f"Only uneven kernels are supported, but kernel size is {x}"
 
     def _create_kernel_from_string(self, name, size, ndim) -> torch.Tensor:
-        "Create an `ndim` kernel of size `(size, ) * ndim`."
+        """Create an `ndim` kernel of size `(size, ) * ndim`."""
         func = getattr(self, f"_create_{name}_kernel")
         kernel = func(size, ndim)
         return kernel.to(torch.float32)
 
     def _create_mean_kernel(self, size, ndim) -> torch.Tensor:
-        return torch.ones([1, 1] + [size] * ndim)
+        """Create a torch.Tensor with shape (size, ) * ndim with all values equal to `1`"""
+        return torch.ones([size] * ndim)
 
     def _create_laplacian_kernel(self, size, ndim) -> torch.Tensor:
-        kernel = torch.ones([1, 1] + [size] * ndim).float() - 2  # make all -1
-        center_point = tuple([0, 0] + [size // 2] * ndim)
+        """Create a torch.Tensor with shape (size, ) * ndim. 
+        All values are `-1` except the center value which is size**ndim - 1
+        """
+        kernel = torch.zeros([size] * ndim).float() - 1  # make all -1
+        center_point = tuple([size // 2] * ndim)
         kernel[center_point] = (size**ndim) - 1
         return kernel
 
     def _create_elliptical_kernel(self, size: int, ndim: int) -> torch.Tensor:
+        """Create a torch.Tensor with shape (size, ) * ndim containing a circle/sphere of `1`"""
         radius = size // 2
         grid = torch.meshgrid(*[torch.arange(0, size) for _ in range(ndim)])
         squared_distances = torch.stack([(axis - radius) ** 2 for axis in grid], 0).sum(0)
@@ -171,7 +192,7 @@ class FilterKernelTransform(Transform):
         return kernel_3d * adapter
 
     def _create_sobel_w_kernel(self, size, ndim) -> torch.Tensor:
-        """Edge detection in x/w direction for Tensor in shape [WH[D]]"""
+        """Sobel kernel in x/w direction for Tensor in shape (B,C)[WH[D]]"""
         if ndim == 2:
             kernel = self._sobel_2d(size)
         elif ndim == 3:
@@ -181,14 +202,26 @@ class FilterKernelTransform(Transform):
         return kernel
 
     def _create_sobel_h_kernel(self, size, ndim) -> torch.Tensor:
-        """Edge detection in y/h direction for Tensor in shape [WH[D]]"""
+        """Sobel kernel in y/h direction for Tensor in shape (B,C)[WH[D]]"""
         kernel = self._create_sobel_w_kernel(size, ndim).transpose(0, 1)
         return kernel
 
     def _create_sobel_d_kernel(self, size, ndim) -> torch.Tensor:
-        """Edge detection in z/d direction for Tensor in shape [WHD]]"""
-        assert ndim == 3, "Only 3 dimensional kernels are supported for `sobel_h`"
-        return self.sobel_3d(size).transpose(1, 2)
+        """Sobel kernel in z/d direction for Tensor in shape (B,C)[WHD]]"""
+        assert ndim == 3, "Only 3 dimensional kernels are supported for `sobel_d`"
+        return self._sobel_3d(size).transpose(1, 2)
+
+    def _create_sharpen_kernel(self, size, ndim) -> torch.Tensor: 
+        """Create a torch.Tensor with shape (size, ) * ndim.
+        The kernel contains a circle/sphere of `-1`, with the center value beeing
+        the absolut sum of all non-zero elements in the kernel        
+        """ 
+        kernel = self._create_elliptical_kernel(size, ndim)
+        center_point = tuple([size // 2] * ndim)
+        center_value = kernel.sum()
+        kernel = kernel * -1
+        kernel[center_point] = center_value
+        return kernel
 
 
 class FilterKernelTransformd(MapTransform):
