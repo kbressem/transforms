@@ -3,7 +3,7 @@ import unittest
 import torch
 from parameterized import parameterized
 
-from transforms.FilterKernelTransform import FilterKernelTransform
+from transforms.FilterKernelTransform import FilterKernelTransform, FilterKernelTransformd
 
 EXPECTED_KERNELS = {
     "mean": torch.tensor([[1, 1, 1], [1, 1, 1], [1, 1, 1]]).float(),
@@ -15,9 +15,9 @@ EXPECTED_KERNELS = {
 }
 
 SUPPORTED_KERNELS = ["mean", "laplacian", "elliptical", "sobel_w", "sobel_h", "sobel_d", "sharpen"]
-
-SAMPLE_IMAGE_2d = torch.randn(1, 10, 10)
-SAMPLE_IMAGE_3d = torch.randn(1, 10, 10, 10)
+SAMPLE_IMAGE_2D = torch.randn(1, 10, 10)
+SAMPLE_IMAGE_3D = torch.randn(1, 10, 10, 10)
+SAMPLE_DICT = {"image_2d": SAMPLE_IMAGE_2D, "image_3d": SAMPLE_IMAGE_3D}
 
 
 class TestFilterKernelTransform(unittest.TestCase):
@@ -29,7 +29,7 @@ class TestFilterKernelTransform(unittest.TestCase):
             _ = FilterKernelTransform(kernel_name)
 
     def test_init_from_array(self):
-        "Test init with custom kernel"
+        "Test init with custom kernel and assert wrong kernel shape throws an error"
         _ = FilterKernelTransform(torch.ones(3, 3))
         with self.assertRaises(Exception) as context:  # noqa F841
             _ = FilterKernelTransform(torch.ones(3, 3, 3, 3))
@@ -46,10 +46,42 @@ class TestFilterKernelTransform(unittest.TestCase):
         "Text function `__call__` for 2d images"
         filter = FilterKernelTransform(kernel_name, 3)
         if kernel_name != "sobel_d":  # sobel_d does not support 2d
-            _ = filter(SAMPLE_IMAGE_2d)
+            out_tensor = filter(SAMPLE_IMAGE_2D)
+            self.assertEqual(out_tensor.shape, SAMPLE_IMAGE_2D.shape)
 
     @parameterized.expand(SUPPORTED_KERNELS)
     def test_call_3d(self, kernel_name):
         "Text function `__call__` for 3d images"
         filter = FilterKernelTransform(kernel_name, 3)
-        _ = filter(SAMPLE_IMAGE_3d)
+        out_tensor = filter(SAMPLE_IMAGE_3D)
+        self.assertEqual(out_tensor.shape, SAMPLE_IMAGE_3D.shape)
+
+
+class TestFilterKernelTransformDict(unittest.TestCase):
+    @parameterized.expand(SUPPORTED_KERNELS)
+    def test_init_from_string_dict(self, kernel_name):
+        "Test init from string and assert an error is thrown if no size is passed"
+        _ = FilterKernelTransformd("image", kernel_name, 3)
+        with self.assertRaises(Exception) as context:  # noqa F841
+            _ = FilterKernelTransformd(self.image_key, kernel_name)
+
+    def test_init_from_array_dict(self):
+        "Test init with custom kernel and assert wrong kernel shape throws an error"
+        _ = FilterKernelTransformd("image", torch.ones(3, 3))
+        with self.assertRaises(Exception) as context:  # noqa F841
+            _ = FilterKernelTransformd(self.image_key, torch.ones(3, 3, 3, 3))
+
+    @parameterized.expand(SUPPORTED_KERNELS)
+    def test_call_2d(self, kernel_name):
+        "Text function `__call__` for 2d images"
+        filter = FilterKernelTransformd("image_2d", kernel_name, 3)
+        if kernel_name != "sobel_d":  # sobel_d does not support 2d
+            out_tensor = filter(SAMPLE_DICT)
+            self.assertEqual(out_tensor["image_2d"].shape, SAMPLE_IMAGE_2D.shape)
+
+    @parameterized.expand(SUPPORTED_KERNELS)
+    def test_call_3d(self, kernel_name):
+        "Text function `__call__` for 3d images"
+        filter = FilterKernelTransformd("image_3d", kernel_name, 3)
+        out_tensor = filter(SAMPLE_DICT)
+        self.assertEqual(out_tensor["image_3d"].shape, SAMPLE_IMAGE_3D.shape)

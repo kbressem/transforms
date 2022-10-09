@@ -102,8 +102,7 @@ class FilterKernelTransform(Transform):
     def __init__(
         self,
         kernel: Union[str, NdarrayOrTensor],
-        kernel_size: Optional[int] = None,
-        convert_one_hot: bool = False,
+        kernel_size: Optional[int] = None
     ) -> None:
 
         if isinstance(kernel, str):
@@ -118,7 +117,6 @@ class FilterKernelTransform(Transform):
 
         self.kernel = kernel
         self.kernel_size = kernel_size
-        self.convert_one_hot = convert_one_hot
 
     def __call__(self, img: NdarrayOrTensor, meta_dict: Optional[Mapping] = None) -> NdarrayOrTensor:
         """
@@ -137,7 +135,7 @@ class FilterKernelTransform(Transform):
             self.kernel = self._create_kernel_from_string(self.kernel, self.kernel_size, ndim)
         img_ = img_.unsqueeze(0)
         img_ = apply_filter(img_, self.kernel)  # batch, channels, H[, W, D] is required for img_
-        img_ = img[0]
+        img_ = img_[0]
         if meta_dict:
             img_ = MetaTensor(img_, meta_dict)
         else:
