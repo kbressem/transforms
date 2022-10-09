@@ -22,8 +22,6 @@ class FilterKernelTransform(Transform):
             A single integer value specifying the size of the quadratic or cubic kernel.
             Computational complexity scales to the power of 2 (2D kernel) or 3 (3D kernel), which
             should be considered when choosing kernel size.
-        convert_one_hot:
-            Convert image to one_hot format
 
     Raises:
         AssertionError: When `kernel` is a string  and `kernel_size` is not specified
@@ -99,11 +97,7 @@ class FilterKernelTransform(Transform):
     backend = [TransformBackends.TORCH, TransformBackends.NUMPY]
     supported_kernels = sorted(["mean", "laplacian", "elliptical", "sobel_w", "sobel_h", "sobel_d", "sharpen"])
 
-    def __init__(
-        self,
-        kernel: Union[str, NdarrayOrTensor],
-        kernel_size: Optional[int] = None
-    ) -> None:
+    def __init__(self, kernel: Union[str, NdarrayOrTensor], kernel_size: Optional[int] = None) -> None:
 
         if isinstance(kernel, str):
             assert kernel_size, "`kernel_size` must be specified when specifying kernels by string."
@@ -236,7 +230,8 @@ class FilterKernelTransformd(MapTransform):
             A single integer value specifying the size of the quadratic or cubic kernel.
             Computational complexity increases exponentially with kernel_size, which
             should be considered when choosing the kernel size.
-        allow_missing_keys: don't raise exception if key is missing.
+        allow_missing_keys:
+            Don't raise exception if key is missing.
     """
 
     backend = FilterKernelTransform.backend
@@ -258,5 +253,82 @@ class FilterKernelTransformd(MapTransform):
         return d
 
 
-class RandomFilterKernel(RandomizableTransform):
+class RandFilterKernelTransform(RandomizableTransform):
+    """Randomly apply a Filterkernel to the input data.
+    Args:
+        kernel:
+            A string specifying the kernel or a custom kernel as `torch.Tenor` or `np.ndarray`.
+            Available options are: `mean`, `laplacian`, `elliptical`, `gaussian``
+            See below for short explanations on every kernel.
+        kernel_size:
+            A single integer value specifying the size of the quadratic or cubic kernel.
+            Computational complexity scales to the power of 2 (2D kernel) or 3 (3D kernel), which
+            should be considered when choosing kernel size.
+        prob:
+            Probability the transform is applied to the data
+    """
+
     backend = FilterKernelTransform.backend
+
+    def __init__(
+        self, kernel: Union[str, NdarrayOrTensor], kernel_size: Optional[int] = None, prob: float = 0.1
+    ) -> None:
+        super().__init__(prob)
+        self.filter = FilterKernelTransform(kernel, kernel_size)
+
+    def __call__(self, img: NdarrayOrTensor, meta_dict: Optional[Mapping] = None) -> NdarrayOrTensor:
+        """
+        Args:
+            img: torch tensor data to apply filter to with shape: [channels, height, width[, depth]]
+            meta_dict: An optional dictionary with metadata
+
+        Returns:
+            A MetaTensor with the same shape as `img` and identical metadata
+        """
+        self.randomize(None)
+        if self._do_transform:
+            img = self.filter(img)
+        return img
+
+
+class RandFilterKernelTransformd(MapTransform, RandomizableTransform):
+    """
+    Dictionary-based wrapper of :py:class:`monai.transforms.RandomFilterKernel`.
+
+    Args:
+        keys: keys of the corresponding items to be transformed.
+            See also: monai.transforms.MapTransform
+        kernel:
+            A string specifying the kernel or a custom kernel as `torch.Tenor` or `np.ndarray`.
+            Available options are: `mean`, `laplacian`, `elliptical`, `sobel_{w,h,d}``
+        kernel_size:
+            A single integer value specifying the size of the quadratic or cubic kernel.
+            Computational complexity increases exponentially with kernel_size, which
+            should be considered when choosing the kernel size.
+        prob:
+            Probability the transform is applied to the data
+        allow_missing_keys:
+            Don't raise exception if key is missing.
+    """
+
+    backend = FilterKernelTransform.backend
+
+    def __init__(
+        self,
+        keys: KeysCollection,
+        kernel: Union[str, NdarrayOrTensor],
+        kernel_size: Optional[int] = None,
+        prob: float = 0.1,
+        allow_missing_keys: bool = False,
+    ) -> None:
+        MapTransform.__init__(self, keys, allow_missing_keys)
+        RandomizableTransform.__init__(self, prob)
+        self.filter = FilterKernelTransform(kernel, kernel_size)
+
+    def __call__(self, data: Mapping[Hashable, NdarrayOrTensor]) -> Dict[Hashable, NdarrayOrTensor]:
+        d = dict(data)
+        self.randomize(None)
+        if self._do_transform:
+            for key in self.key_iterator(d):
+                d[key] = self.filter(d[key])
+        return d
