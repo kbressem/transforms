@@ -31,10 +31,10 @@ jobs:
       if: steps.cache-venv.outputs.cache-hit != 'true'
     - name: flake8
       run: |
-        . ./.venv/bin/activate && flake8 deepspa
+        . ./.venv/bin/activate && flake8 transforms tests
     - name: black
       run: |
-        . ./.venv/bin/activate && black -l 120 --check deepspa
+        . ./.venv/bin/activate && black -l 120 --check transforms tests
     - name: Install library with all dependencies
       run: |
         . ./.venv/bin/activate &&

@@ -1,8 +1,10 @@
 import torch
+
+# TODO
 from trainlib.transforms import get_train_transforms
 from trainlib.utils import load_config
 
-from deepspa.utils import REPO_DIR
+from transforms.utils import REPO_DIR
 
 CONFIG = load_config("configs/config_mri.yaml")
 
@@ -23,7 +25,7 @@ def test_get_base_transforms():
     assert sample_transformed[IMG_KEY].shape == torch.Size([1, 521, 535])
 
 
-def test_get_base_transforms():
+def test_get_base_transforms2():
     my_transforms = get_train_transforms(config=CONFIG)
     sample = {IMG_KEY: IMG_PATH, SEG_KEY: SEG_PATH}
     sample_transformed = my_transforms(sample)
