@@ -1,0 +1,10 @@
+{
+    "editor.formatOnSave": true,
+    "[markdown]": {
+        "editor.formatOnSave": false,
+    },
+    "python.formatting.blackArgs": [
+        "-l 120"
+    ],
+    "python.formatting.provider": "black"
+}
