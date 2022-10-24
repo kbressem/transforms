@@ -1,0 +1,26 @@
+run_id: runs/xray_clf/run_001/
+overwrite: true
+# Dataset
+data:
+  image_cols: [image]
+  label_cols: label
+
+log_dir: logs
+out_dir: output
+
+transforms:
+  prob: 0.1
+  mode: [bilinear, nearest]
+  base:
+    EnsureChannelFirstd:
+      keys: [image, label]
+    ScaleIntensityd:
+      keys: [image]
+      minv: 0
+      maxv: 1
+    NormalizeIntensityd:
+      keys: [image]
+
+  train:
+    RandGaussianSmoothd:
+      keys: [image]
