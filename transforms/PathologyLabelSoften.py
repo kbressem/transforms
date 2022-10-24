@@ -112,12 +112,12 @@ class PathologyLabelSoften(Transform):
         return labels
 
     def _smooth(self, label: np.ndarray) -> np.ndarray:
-        """Apply median smooth to 2d numpy array"""
+        """Apply mean filtering to 2d numpy array"""
         label = convert_to_tensor(label)
         label = label.unsqueeze(0).unsqueeze(0).float()
         ks = 3
-        median_kernel = torch.ones(1, 1, ks, ks) / ks**2
-        label = F.conv2d(label, median_kernel, padding=ks // 2)
+        mean_filtering_kernel = torch.ones(1, 1, ks, ks) / ks**2
+        label = F.conv2d(label, mean_filtering_kernel, padding=ks // 2)
         return label.squeeze().numpy()
 
     def _soften_label(self, label: np.ndarray) -> np.ndarray:
