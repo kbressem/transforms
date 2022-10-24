@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 # TODO
@@ -15,6 +16,7 @@ IMG_PATH = REPO_DIR / "tests/test_data/xray/J_B_Seq_1_Thorax_p_a_n.dcm"
 SEG_PATH = REPO_DIR / "tests/test_data/xray/J_B_Seq_1_Thorax_p_a_n.seg.nrrd"
 
 
+@pytest.mark.skip("Until trainlib solves https://github.com/kbressem/trainlib/issues/44")
 def test_get_base_transforms():
     my_transforms = get_train_transforms(config=CONFIG)
     sample = {IMG_KEY: IMG_PATH, SEG_KEY: SEG_PATH}
