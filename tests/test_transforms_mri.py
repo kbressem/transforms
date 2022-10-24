@@ -1,6 +1,3 @@
-import torch
-
-# TODO
 from trainlib.transforms import get_train_transforms
 from trainlib.utils import load_config
 
@@ -22,17 +19,6 @@ def test_get_base_transforms():
     print(sample_transformed.keys())
     print("shape", sample_transformed[IMG_KEY].shape, sample_transformed[SEG_KEY].shape)
     assert len(sample_transformed) == 4
-    assert sample_transformed[IMG_KEY].shape == torch.Size([1, 521, 535])
-
-
-def test_get_base_transforms2():
-    my_transforms = get_train_transforms(config=CONFIG)
-    sample = {IMG_KEY: IMG_PATH, SEG_KEY: SEG_PATH}
-    sample_transformed = my_transforms(sample)
-
-    assert len(sample_transformed) == 4
-    assert sample_transformed[IMG_KEY].shape == torch.Size([1, 384, 384, 23])
-    assert sample_transformed[SEG_KEY].shape == torch.Size([1, 384, 384, 23])
 
 
 if __name__ == "__main__":
