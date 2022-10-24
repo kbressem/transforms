@@ -1,4 +1,4 @@
-run_id: runs/xray_clf/run_001/
+run_id: runs/mri_test/run_001/
 overwrite: true
 # Dataset
 data:
