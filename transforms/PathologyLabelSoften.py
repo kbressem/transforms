@@ -41,8 +41,11 @@ class PathologyLabelSoften(Transform):
         # labels are pseudo-3d, means format is C [[H, W], 1]
         # squeezing makes working with labels easier
         label = label.squeeze()
+        logger.debug("[PathologyLabelSoften]: label shape after squeeze:", label.shape)
         label = self._sort_labels(label, meta_dict)
+        logger.debug("[PathologyLabelSoften]: label shape after sorting:", label.shape)
         label = self._create_soft_labels(label)
+        logger.debug("[PathologyLabelSoften]: label shape after softening:", label.shape)
         label = np.expand_dims(label, -1)  # undo squeeze
         meta_dict = self._normalize_dict(label, meta_dict)
         label, *_ = convert_data_type(label, prev_type, device)
