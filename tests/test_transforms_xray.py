@@ -12,8 +12,8 @@ CONFIG = load_config("configs/config_xray.yaml")
 IMG_KEY = CONFIG.data.image_cols[0]
 SEG_KEY = CONFIG.data.label_cols[0]
 
-IMG_PATH = REPO_DIR / "tests/test_data/xray/J_B_Seq_1_Thorax_p_a_n.dcm"
-SEG_PATH = REPO_DIR / "tests/test_data/xray/J_B_Seq_1_Thorax_p_a_n.seg.nrrd"
+IMG_PATH = REPO_DIR / "tests/test_data/xray/Thorax_pa.dcm"
+SEG_PATH = REPO_DIR / "tests/test_data/xray/Thorax_pa.seg.nrrd"
 
 
 @pytest.mark.skip("Until trainlib solves https://github.com/kbressem/trainlib/issues/44")

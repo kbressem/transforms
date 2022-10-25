@@ -8,8 +8,8 @@ CONFIG = load_config("configs/config_mri.yaml")
 IMG_KEY = CONFIG.data.image_cols[0]
 SEG_KEY = CONFIG.data.label_cols[0]
 
-IMG_PATH = REPO_DIR / "tests/test_data/mri/K_B_Seq_2_t2_tse_sag"
-SEG_PATH = REPO_DIR / "tests/test_data/mri/K_B_Seq_2_t2_tse_sag.seg.nrrd"
+IMG_PATH = REPO_DIR / "tests/test_data/mri/t2_tse_sag"
+SEG_PATH = REPO_DIR / "tests/test_data/mri/t2_tse_sag.seg.nrrd"
 
 
 def test_get_base_transforms():
