@@ -1,0 +1,37 @@
+run_id: runs/xray_test/run_001/
+overwrite: true
+# Dataset
+data:
+  image_cols: [image]
+  label_cols: label
+
+log_dir: logs
+out_dir: output
+
+transforms:
+  prob: 0.1
+  mode: [bilinear, nearest]
+  base:
+    LoadImaged:
+      keys: [image, label]
+      reader: [ITKReader, NrrdReader]
+    EnsureChannelFirstd:
+      keys: [image]
+    MulticlassSegNrrdToOneHotd:
+      keys: [label]
+      ref_image_key: image
+    SqueezeDimd:
+      dim: -1
+    ScaleIntensityd:
+      keys: [image]
+      minv: 0
+      maxv: 1
+    NormalizeIntensityd:
+      keys: [image]
+
+  train:
+    RandGaussianSmoothd:
+      keys: [image]
+
+patch:
+  transforms: transforms/MultiClassSegNrrdToOneHot.py
