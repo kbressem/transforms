@@ -13,6 +13,7 @@ transforms:
   prob: 0.1
   mode: [bilinear, nearest]
   base:
+    LoadImaged: {}
     EnsureChannelFirstd:
       keys: [image, label]
     ScaleIntensityd:
