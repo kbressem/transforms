@@ -4,6 +4,7 @@ overwrite: true
 data:
   image_cols: [image]
   label_cols: label
+  data_dir: /path/doesnt/exist
 
 log_dir: logs
 out_dir: output
@@ -12,6 +13,7 @@ transforms:
   prob: 0.1
   mode: [bilinear, nearest]
   base:
+    LoadImaged: {}
     EnsureChannelFirstd:
       keys: [image, label]
     ScaleIntensityd:
@@ -19,8 +21,4 @@ transforms:
       minv: 0
       maxv: 1
     NormalizeIntensityd:
-      keys: [image]
-
-  train:
-    RandGaussianSmoothd:
       keys: [image]
